@@ -1,0 +1,12 @@
+jsonv
+
+We are receiving data from the Twitter Streaming API and sometimes save them for later analysis.
+To extract readable information from those files I've writtern this little tool.
+
+* To extract info on the contens (displays json keys):
+
+  java -jar jsonv.jar -i dumpfile.json.gz
+
+* To extract actual values in tab separated form:
+
+  java -jar jsonv.jar created_at,user.screen_name,text dumpfile.json.gz
