@@ -10,6 +10,7 @@ import net.minidev.json.parser.JSONParser
 import net.minidev.json.{JSONArray, JSONObject}
 import java.io._
 import java.util.zip.GZIPInputStream
+import io.Source
 
 /**
  * >>Describe Class<<
@@ -23,7 +24,7 @@ object Main extends Logging {
   private def usage(message: Option[String] = None) {
     message.foreach(error(_))
     error("usage: jsonv [-i] <dump>")
-    error("       jvonv [-csv|-tsv] <fields> <dump>")
+    error("       jvonv [-csv|-tsv] [-f] <fields> <dump>")
     error("")
     error("Start by looking up the fields info from the dump using -i.")
     error("Then dump your information in CSV or TSV format by providing the")
@@ -31,13 +32,19 @@ object Main extends Logging {
     System.exit(0)
   }
 
-  private def getFileReader(dump: File): BufferedReader = {
-    dump match {
+  private def getFileReader(dump: File, readFully: Boolean): BufferedReader = {
+    val is = dump match {
       case f if (f.getName.endsWith("gz")) =>
-        new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(f))))
+        new GZIPInputStream(new FileInputStream(f))
       case f =>
-        new BufferedReader(new InputStreamReader(new FileInputStream(f)))
+        new FileInputStream(f)
     }
+    if(readFully) {
+      new BufferedReader(new StringReader(Source.fromInputStream(is).mkString("").replaceAll("[\r\n]+", "")))
+    } else {
+      new BufferedReader(new InputStreamReader(is))
+    }
+
   }
 
   val SEPARATOR = "sep"
@@ -46,6 +53,7 @@ object Main extends Logging {
     info("jsonv - (c) 2012 Matthias L. Jugel")
     if (args.length == 0) usage()
     var printInfo = false
+    var readFully = false
     var settings: Map[String, String] = Map(SEPARATOR -> "\t")
     var input: List[String] = Nil
     args.foreach {
@@ -56,6 +64,8 @@ object Main extends Logging {
           settings += (SEPARATOR -> ";")
         case "-tsv" =>
           settings += (SEPARATOR -> "\t")
+        case "-f" =>
+          readFully = true
         case i =>
           input = i :: input
       }
@@ -73,7 +83,7 @@ object Main extends Logging {
 
     if (printInfo) {
       info("Dumping field information from %s".format(dump))
-      val r = getFileReader(dump)
+      val r = getFileReader(dump, readFully)
       var line = r.readLine
 
       while (line != null) {
@@ -105,22 +115,13 @@ object Main extends Logging {
     } else {
       val fields = input.head.split(",").toList
       info("dumping fields: %s".format(fields))
-      val r = getFileReader(dump)
+      val r = getFileReader(dump, readFully)
       var line = r.readLine
       while (line != null) {
         val trimmedLine = line.trim
         if (trimmedLine.length > 0)
           try {
-            val json = jsonParser.parse(trimmedLine)
-            json match {
-              case j: JSONArray if (fields.contains("@array")) =>
-                println(j.toArray.mkString(settings(SEPARATOR)))
-              case j: JSONObject =>
-                println(fields.flatMap(f => value(j, f.split("\\."))).map(_.replaceAll("[\\n\\r]+", " "))
-                    .mkString(settings(SEPARATOR)))
-              case j: Object =>
-                info("Only found primitive type in json data: %s".format(j))
-            }
+            println(values(jsonParser.parse(trimmedLine), fields, settings(SEPARATOR)))
           } catch {
             case e: Exception => debug("line can't be parsed: %s".format(e.getMessage))
           }
@@ -129,20 +130,35 @@ object Main extends Logging {
     }
   }
 
-  private def value(o: Object, keys: Seq[String]): Option[String] = {
+  private def values(json: Object, fields: Seq[String], sep: String): String = {
+    json match {
+      case j: JSONArray =>
+        j.toArray.map(values(_, fields, sep)).mkString("\n")
+      case j: JSONObject =>
+        fields.flatMap(f => value(j, f.split("\\."), sep))/*.map(_.replaceAll("[\\n\\r]+", " "))*/.mkString(sep)
+      case j: Object =>
+        info("Only found primitive type in json data: %s".format(j))
+        ""
+    }
+  }
+
+  private def value(o: Object, keys: Seq[String], sep: String): Option[String] = {
     if (keys.length > 1 && o.isInstanceOf[JSONObject])
-      value(o.asInstanceOf[JSONObject].get(keys.head), keys.drop(1))
+      value(o.asInstanceOf[JSONObject].get(keys.head), keys.drop(1), sep)
     else {
       val key = keys.head
       o match {
-        case j: JSONArray if (key == "@array") =>
-          error("%s: sub-arrays not supported".format(key))
-          None
+        case j: JSONArray if (key.startsWith("@array(")) =>
+          Some(values(j, key.substring(7, key.length - 1).split(";").map(_.trim), sep))
+//          error("%s: sub-arrays not supported".format(key))
+//          None
         case j: JSONObject =>
-          Some(j.get(key).toString)
+          Some(quote(j.get(key)))
         case j: Object =>
-          Some(j.toString)
+          Some(quote(j))
       }
     }
   }
+
+  private def quote(o: Any): String = if(o.isInstanceOf[String]) "\"%s\"".format(o.toString.replaceAll("\"", "\"\"")) else o.toString
 }
