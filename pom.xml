@@ -14,9 +14,9 @@
   <inceptionYear>2012</inceptionYear>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <scala.version>2.9.0-1</scala.version>
+    <scala.version>2.9.1-1</scala.version>
     <json-smart.version>1.0.9</json-smart.version>
-    <grizzled.version>0.6.6</grizzled.version>
+    <grizzled.version>0.6.8</grizzled.version>
     <logback.version>0.9.29</logback.version>
     <slf4j.version>1.6.2</slf4j.version>
   </properties>
@@ -50,7 +50,7 @@
     </dependency>
     <dependency>
       <groupId>org.clapper</groupId>
-      <artifactId>grizzled-slf4j_2.9.0</artifactId>
+      <artifactId>grizzled-slf4j_${scala.version}</artifactId>
       <version>${grizzled.version}</version>
     </dependency>
     <dependency>
