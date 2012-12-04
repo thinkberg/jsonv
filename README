@@ -1,7 +1,7 @@
 jsonv
 
 We are receiving data from the Twitter Streaming API and sometimes save them for later analysis.
-To extract readable information from those files I've writtern this little tool.
+To extract readable information from those files I've written this little tool.
 
 * To extract info on the contens (displays json keys):
 
